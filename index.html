@@ -565,6 +565,53 @@ dialog.md-modal:not([open])::backdrop {
   font-size: 0.9em;
 }
 
+/* Recap styling inside summary modal */
+.md-recap-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.md-recap-headline {
+  font-size: 1.1em;
+  font-weight: 800;
+  color: var(--yellow);
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.md-recap-desc {
+  font-size: 0.88em;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.md-recap-link {
+  font-size: 0.8em;
+  color: var(--yellow);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s;
+}
+.md-recap-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+.md-section-title {
+  font-size: 0.9em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+}
+
+
 /* ── RESPONSIVE ── */
 @media(max-width:680px){
   .hdr{flex-direction:column;text-align:center;gap:8px}
@@ -1338,6 +1385,12 @@ function renderMatchDetail(data) {
   const state = comps.status?.type?.state || 'pre';
   const detail = comps.status?.type?.detail || '';
   
+  // Set the first tab text dynamically (Summary vs. Timeline)
+  const timelineTabBtn = document.querySelector('.md-tab[data-mdtab="timeline"]');
+  if (timelineTabBtn) {
+    timelineTabBtn.textContent = state === 'post' ? 'Summary' : 'Timeline';
+  }
+  
   // Header HTML
   let scoreHTML = '';
   if (state === 'pre') {
@@ -1378,44 +1431,109 @@ function renderMatchDetail(data) {
     return;
   }
   
-  if (events.length === 0) {
-    html('md-timeline-pane', '<div class="empty">No events logged for this match yet</div>');
-  } else {
-    const timelineHTML = events.map(evt => {
-      const type = evt.type?.type || '';
-      const text = evt.text || evt.shortText || '';
-      const clock = evt.clock?.displayValue || '';
+  if (state === 'post') {
+    // Render Brief Summary and Highlights for completed matches
+    let recapHTML = '';
+    if (data.article) {
+      const article = data.article;
+      const headline = article.headline || '';
+      const desc = article.description || '';
+      const url = article.links?.web?.href || '';
       
-      let dotCls = '';
-      let icon = '';
-      if (type.includes('goal')) {
-        dotCls = 'goal';
-        icon = '⚽';
-      } else if (type === 'yellow-card') {
-        dotCls = 'card';
-        icon = '🟨';
-      } else if (type === 'red-card') {
-        dotCls = 'red-card';
-        icon = '🟥';
-      } else if (type === 'substitution') {
-        dotCls = 'sub';
-        icon = '🔄';
-      } else if (type === 'halftime' || type === 'kickoff' || type.includes('half')) {
-        dotCls = 'period';
-        icon = '⏱️';
-      }
-      
-      return `
-        <div class="md-timeline-item">
-          <div class="md-timeline-dot ${dotCls}">${icon}</div>
-          <div class="md-timeline-time">${clock ? clock : '0\''}</div>
-          <div class="md-timeline-title">${evt.type?.text || 'Event'}</div>
-          <div class="md-timeline-desc">${text}</div>
+      recapHTML = `
+        <div class="md-recap-box">
+          ${headline ? `<h3 class="md-recap-headline">${esc(headline)}</h3>` : ''}
+          ${desc ? `<p class="md-recap-desc">${esc(desc)}</p>` : ''}
+          ${url ? `<a class="md-recap-link" href="${esc(url)}" target="_blank">Read full recap on ESPN &rarr;</a>` : ''}
         </div>
       `;
-    }).join('');
+    }
     
-    html('md-timeline-pane', `<div class="md-timeline">${timelineHTML}</div>`);
+    const highlightEvents = events.filter(evt => {
+      const type = evt.type?.type || '';
+      return type.includes('goal') || type === 'red-card' || evt.shootout || type.includes('shootout') || type.includes('penalty');
+    });
+    
+    let highlightsHTML = '';
+    if (highlightEvents.length === 0) {
+      highlightsHTML = '<div class="empty">No goals or red cards logged for this match</div>';
+    } else {
+      const itemsHTML = highlightEvents.map(evt => {
+        const type = evt.type?.type || '';
+        const text = evt.text || evt.shortText || '';
+        const clock = evt.clock?.displayValue || '';
+        
+        let dotCls = '';
+        let icon = '';
+        if (type.includes('goal')) {
+          dotCls = 'goal';
+          icon = '⚽';
+        } else if (type === 'red-card') {
+          dotCls = 'red-card';
+          icon = '🟥';
+        } else {
+          dotCls = 'goal';
+          icon = '🎯';
+        }
+        
+        return `
+          <div class="md-timeline-item">
+            <div class="md-timeline-dot ${dotCls}">${icon}</div>
+            <div class="md-timeline-time">${clock ? clock : '0\''}</div>
+            <div class="md-timeline-title">${evt.type?.text || 'Highlight'}</div>
+            <div class="md-timeline-desc">${text}</div>
+          </div>
+        `;
+      }).join('');
+      highlightsHTML = `<div class="md-timeline">${itemsHTML}</div>`;
+    }
+    
+    html('md-timeline-pane', `
+      ${recapHTML}
+      <div class="md-section-title">Scoring & Key Highlights</div>
+      ${highlightsHTML}
+    `);
+  } else {
+    // Render Full Timeline for live or upcoming matches
+    if (events.length === 0) {
+      html('md-timeline-pane', '<div class="empty">No events logged for this match yet</div>');
+    } else {
+      const timelineHTML = events.map(evt => {
+        const type = evt.type?.type || '';
+        const text = evt.text || evt.shortText || '';
+        const clock = evt.clock?.displayValue || '';
+        
+        let dotCls = '';
+        let icon = '';
+        if (type.includes('goal')) {
+          dotCls = 'goal';
+          icon = '⚽';
+        } else if (type === 'yellow-card') {
+          dotCls = 'card';
+          icon = '🟨';
+        } else if (type === 'red-card') {
+          dotCls = 'red-card';
+          icon = '🟥';
+        } else if (type === 'substitution') {
+          dotCls = 'sub';
+          icon = '🔄';
+        } else if (type === 'halftime' || type === 'kickoff' || type.includes('half')) {
+          dotCls = 'period';
+          icon = '⏱️';
+        }
+        
+        return `
+          <div class="md-timeline-item">
+            <div class="md-timeline-dot ${dotCls}">${icon}</div>
+            <div class="md-timeline-time">${clock ? clock : '0\''}</div>
+            <div class="md-timeline-title">${evt.type?.text || 'Event'}</div>
+            <div class="md-timeline-desc">${text}</div>
+          </div>
+        `;
+      }).join('');
+      
+      html('md-timeline-pane', `<div class="md-timeline">${timelineHTML}</div>`);
+    }
   }
   
   // Render stats pane
