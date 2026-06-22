@@ -565,6 +565,135 @@ dialog.md-modal:not([open])::backdrop {
   font-size: 0.9em;
 }
 
+/* Pre-match matchup preview styling */
+.md-preview-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.md-preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.md-section-title {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  color: var(--yellow);
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  margin: 0;
+}
+.md-form-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 480px) {
+  .md-form-container {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+.md-form-col {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px;
+}
+.md-form-col-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+.md-form-circles {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.form-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72em;
+  font-weight: 800;
+  color: #fff;
+  cursor: help;
+}
+.form-w { background: var(--green); }
+.form-l { background: var(--red); }
+.form-d { background: #555; }
+
+.md-form-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.md-form-match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78em;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+.md-form-badge {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 800;
+  color: #fff;
+  min-width: 18px;
+  text-align: center;
+}
+.badge-w { background: var(--green); }
+.badge-l { background: var(--red); }
+.badge-d { background: #555; }
+
+.md-form-opp {
+  flex: 1;
+  margin-left: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.md-form-score {
+  font-weight: 700;
+  color: var(--yellow);
+}
+
+.md-odds-box {
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px dashed rgba(255, 215, 0, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.md-odds-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: var(--yellow);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.md-odds-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.md-odds-item {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* Recap styling inside summary modal */
 .md-recap-box {
   background: rgba(255, 255, 255, 0.04);
@@ -1385,10 +1514,15 @@ function renderMatchDetail(data) {
   const state = comps.status?.type?.state || 'pre';
   const detail = comps.status?.type?.detail || '';
   
-  // Set the first tab text dynamically (Summary vs. Timeline)
+  // Set the first tab text dynamically (Preview vs. Summary vs. Timeline)
   const timelineTabBtn = document.querySelector('.md-tab[data-mdtab="timeline"]');
-  if (timelineTabBtn) {
-    timelineTabBtn.textContent = state === 'post' ? 'Summary' : 'Timeline';
+  const statsTabBtn = document.querySelector('.md-tab[data-mdtab="stats"]');
+  if (state === 'pre') {
+    if (timelineTabBtn) timelineTabBtn.textContent = 'Preview';
+    if (statsTabBtn) statsTabBtn.textContent = 'Group Standings';
+  } else {
+    if (timelineTabBtn) timelineTabBtn.textContent = state === 'post' ? 'Summary' : 'Timeline';
+    if (statsTabBtn) statsTabBtn.textContent = 'Team Stats';
   }
   
   // Header HTML
@@ -1426,8 +1560,215 @@ function renderMatchDetail(data) {
   // Render timeline pane
   const events = data.keyEvents || [];
   if (state === 'pre') {
-    html('md-timeline-pane', '<div class="md-pregame-msg">This match has not started yet. Stay tuned for live event timeline updates!</div>');
-    html('md-stats-pane', '<div class="md-pregame-msg">This match has not started yet. Team statistics will appear here when the match begins.</div>');
+    // 1. Build Preview Pane Content (Form, Odds)
+    let previewHTML = '';
+    
+    // Odds Box
+    let oddsHTML = '';
+    const dkOdds = (data.pickcenter || []).find(p => p.provider?.name?.toLowerCase().includes('draftkings') || p.provider?.name?.toLowerCase().includes('espn bet')) || (data.pickcenter || [])[0];
+    if (dkOdds && dkOdds.away && dkOdds.home && dkOdds.draw) {
+      const ho = dkOdds.home.close?.odds || dkOdds.home.open?.odds || '';
+      const ao = dkOdds.away.close?.odds || dkOdds.away.open?.odds || '';
+      const dow = dkOdds.draw.close?.odds || dkOdds.draw.open?.odds || '';
+      const providerName = dkOdds.provider?.name || 'Odds';
+      if (ho || ao || dow) {
+        oddsHTML = `
+          <div class="md-odds-box">
+            <div class="md-odds-title">💰 Match Odds (${providerName})</div>
+            <div class="md-odds-grid">
+              <div class="md-odds-item"><strong>${ht.abbreviation || 'Home'}</strong>: ${ho}</div>
+              <div class="md-odds-item"><strong>Draw</strong>: ${dow}</div>
+              <div class="md-odds-item"><strong>${at.abbreviation || 'Away'}</strong>: ${ao}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    // Form Container
+    let formHTML = '';
+    if (data.boxscore?.form) {
+      const formEntries = data.boxscore.form;
+      const homeFormObj = formEntries.find(f => String(f.team?.id) === String(ht.id));
+      const awayFormObj = formEntries.find(f => String(f.team?.id) === String(at.id));
+      
+      const renderFormCol = (teamName, formObj, flagIcon) => {
+        if (!formObj || !formObj.events || formObj.events.length === 0) {
+          return `
+            <div class="md-form-col">
+              <div class="md-form-col-header">
+                <span style="font-size: 1.2em; margin-right: 4px;">${flagIcon}</span>
+                <strong>${teamName}</strong>
+              </div>
+              <div class="empty" style="font-size:0.8em; padding: 20px 0; color:var(--mgray); text-align:center;">No recent matches recorded</div>
+            </div>
+          `;
+        }
+        const evs = formObj.events.slice(0, 5); // last 5 matches
+        
+        // Quick circles
+        const circles = evs.map(e => {
+          const res = e.gameResult || 'D';
+          let cls = 'form-d';
+          if (res === 'W') cls = 'form-w';
+          else if (res === 'L') cls = 'form-l';
+          return `<span class="form-circle ${cls}" title="${res} vs ${e.opponent?.displayName || 'Unknown'} (${e.score})">${res}</span>`;
+        }).join('');
+        
+        // Detailed list
+        const rows = evs.map(e => {
+          const res = e.gameResult || 'D';
+          let badgeCls = 'badge-d';
+          if (res === 'W') badgeCls = 'badge-w';
+          else if (res === 'L') badgeCls = 'badge-l';
+          
+          const oppAbb = e.opponent?.abbreviation || e.opponent?.displayName?.slice(0, 3).toUpperCase() || 'OPP';
+          const oppFlag = flag(e.opponent?.displayName, e.opponent?.abbreviation);
+          const isAway = e.atVs === '@';
+          const scoreStr = e.score || '';
+          
+          return `
+            <div class="md-form-match-row">
+              <span class="md-form-badge ${badgeCls}">${res}</span>
+              <span class="md-form-opp">${isAway ? '@' : 'vs'} <span class="flag-sm">${oppFlag}</span><strong>${oppAbb}</strong></span>
+              <span class="md-form-score">${scoreStr}</span>
+            </div>
+          `;
+        }).join('');
+        
+        return `
+          <div class="md-form-col">
+            <div class="md-form-col-header">
+              <span style="font-size: 1.2em; margin-right: 4px;">${flagIcon}</span>
+              <strong>${teamName}</strong>
+            </div>
+            <div class="md-form-circles">${circles}</div>
+            <div class="md-form-rows">${rows}</div>
+          </div>
+        `;
+      };
+      
+      formHTML = `
+        <div class="md-preview-section">
+          <h4 class="md-section-title">📊 Recent Matches &amp; Form</h4>
+          <div class="md-form-container">
+            ${renderFormCol(ht.displayName || ht.abbreviation || 'Home Team', homeFormObj, hf)}
+            ${renderFormCol(at.displayName || at.abbreviation || 'Away Team', awayFormObj, af)}
+          </div>
+        </div>
+      `;
+    }
+    
+    if (oddsHTML || formHTML) {
+      previewHTML = `
+        <div class="md-preview-container">
+          ${oddsHTML}
+          ${formHTML}
+        </div>
+      `;
+    } else {
+      previewHTML = '<div class="md-pregame-msg">This match has not started yet. Stay tuned for live event timeline updates!</div>';
+    }
+    html('md-timeline-pane', previewHTML);
+    
+    // 2. Build Group Standings Pane Content
+    let groupHTML = '';
+    let foundGroup = null;
+    let groupName = '';
+    
+    if (cachedStandings) {
+      for (const grp of cachedStandings) {
+        const entries = grp.standings?.entries || grp.entries || [];
+        const entry = entries.find(e => String(e.team?.id) === String(ht.id) || String(e.team?.id) === String(at.id));
+        if (entry) {
+          foundGroup = grp;
+          groupName = (grp.name || grp.abbreviation || 'Group').replace(/^Group\s*/i, '').trim();
+          break;
+        }
+      }
+    }
+    
+    if (foundGroup) {
+      const rawEntries = foundGroup.standings?.entries || foundGroup.entries || [];
+      const entries = [...rawEntries].sort((a,b)=>{
+        const sv=(stats,keys)=>{
+          for(const k of keys){
+            const s=stats.find(x=>x.name===k||x.abbreviation===k||x.shortDisplayName===k);
+            if(s!=null) return parseFloat(s.displayValue??s.value??0)||0;
+          }
+          return 0;
+        };
+        const aPts=sv(a.stats||[],['PTS','points']), bPts=sv(b.stats||[],['PTS','points']);
+        if(bPts!==aPts) return bPts-aPts;
+        const aGF=sv(a.stats||[],['GF','goalsFor','pointsFor','BF']), bGF=sv(b.stats||[],['GF','goalsFor','pointsFor','BF']);
+        const aGA=sv(a.stats||[],['GA','goalsAgainst','pointsAgainst','BC']), bGA=sv(b.stats||[],['GA','goalsAgainst','pointsAgainst','BC']);
+        const aGD=aGF-aGA, bGD=bGF-bGA;
+        if(bGD!==aGD) return bGD-aGD;
+        return bGF-aGF;
+      });
+      const letter = groupName.toUpperCase()[0] || 'A';
+      const colors = {'A':'gh-a','B':'gh-b','C':'gh-c','D':'gh-d','E':'gh-e',
+                     'F':'gh-f','G':'gh-g','H':'gh-h','I':'gh-i','J':'gh-j','K':'gh-k','L':'gh-l'};
+      const headCls = colors[letter] || 'gh-a';
+      
+      const rows = entries.map((entry, i) => {
+        const t = entry.team || {};
+        const st = entry.stats || [];
+        const pos = i + 1;
+        let piCls = 'pi4'; let trCls = 'tr4';
+        if (pos === 1) { piCls = 'pi1'; trCls = 'tr1'; }
+        else if (pos === 2) { piCls = 'pi2'; trCls = 'tr2'; }
+        else if (pos === 3) { piCls = 'pi3'; trCls = 'tr3'; }
+        
+        const gp = statVal(st, ['GP','gamesPlayed','played','GJ']);
+        const w = statVal(st, ['W','wins','W']);
+        const d = statVal(st, ['D','draws','ties','T']);
+        const l = statVal(st, ['L','losses','P']);
+        const gf = statVal(st, ['GF','goalsFor','pointsFor','BF']);
+        const ga = statVal(st, ['GA','goalsAgainst','pointsAgainst','BC']);
+        const gdRaw = parseInt(gf) - parseInt(ga);
+        const gd = isNaN(gdRaw) ? statVal(st, ['GD','goalDifferential','pointDifferential']) : (gdRaw > 0 ? '+' + gdRaw : String(gdRaw));
+        const pts = statVal(st, ['PTS','points','pts','Points']);
+        
+        const f = flag(t.displayName, t.abbreviation);
+        const abb = t.shortDisplayName || t.abbreviation || t.displayName || 'TBD';
+        
+        const isHomeTeam = String(t.id) === String(ht.id);
+        const isAwayTeam = String(t.id) === String(at.id);
+        const isCurrentTeam = isHomeTeam || isAwayTeam;
+        let highlightStyle = '';
+        if (isHomeTeam) {
+          highlightStyle = 'background: rgba(0, 119, 255, 0.15); font-weight: bold; border-left: 3px solid var(--blue);';
+        } else if (isAwayTeam) {
+          highlightStyle = 'background: rgba(255, 170, 0, 0.15); font-weight: bold; border-left: 3px solid var(--yellow);';
+        }
+        
+        return `
+          <tr style="${highlightStyle}" class="${trCls}">
+            <td><div class="tname-wrap"><span class="pi ${piCls}"></span><span class="flag-sm">${f}</span>${abb}</div></td>
+            <td>${gp}</td><td>${w}</td><td>${d}</td><td>${l}</td>
+            <td>${gf}:${ga}</td><td>${gd}</td><td class="pts" style="${isCurrentTeam ? 'color:var(--yellow);' : ''}">${pts}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      groupHTML = `
+        <div class="group-card" style="margin: 0 auto; max-width: 100%;">
+          <div class="group-head ${headCls}">Group ${groupName} Standing</div>
+          <table class="gtable">
+            <thead><tr>
+               <th>Team</th><th>GP</th><th>W</th><th>D</th><th>L</th>
+               <th>GF:GA</th><th>GD</th><th>PTS</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      groupHTML = '<div class="md-pregame-msg">This match is in the knockout stage or group standing is unavailable.</div>';
+    }
+    
+    html('md-stats-pane', groupHTML);
     return;
   }
   
