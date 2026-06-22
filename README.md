@@ -1,8 +1,6 @@
-# ⚽ FIFA World Cup 2026 Dashboard & Simulator
+# ⚽ FIFA World Cup 2026 Dashboard
 
 Welcome to the **FIFA World Cup 2026 Dashboard**, a modern, lightweight, and interactive web application designed to bring you the excitement of the tournament in real-time. Built entirely on standard web technologies, it delivers up-to-the-minute updates without the bloat of modern framework stacks.
-
-![FIFA World Cup 2026 Dashboard](./worldcup_banner.png)
 
 ---
 
